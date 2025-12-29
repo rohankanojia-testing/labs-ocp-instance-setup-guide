@@ -1,0 +1,52 @@
+# Pull secrets and authentication files
+pull-secret.txt
+pull_secret.txt
+**/pull-secret*.txt
+**/pull_secret*.txt
+
+# SSH keys (if accidentally added)
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.pub
+!scripts/**/*.pub
+
+# Generated inventory files
+*.local
+ansible/inventory/*.local
+ansible/inventory/*-backup.local
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Credentials and secrets
+*secret*
+*credential*
+*password*
+*.secret
+*.key
+
+# SMCIPMITool archives (may contain binaries)
+smcipmitool.tar.gz
+**/smcipmitool.tar.gz
+
+# Temporary files
+*.tmp
+*.temp
+kubeletconfig-*.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
