@@ -1,0 +1,88 @@
+---
+# Sample vars file
+################################################################################
+# Lab & cluster infrastructure vars
+################################################################################
+# Which lab to be deployed into (Ex scalelab)
+lab: performancelab
+# Which cloud in the lab environment (Ex cloud42)
+lab_cloud: cloud50
+
+# Either mno or sno
+cluster_type: sno
+
+# Applies to mno clusters
+worker_node_count: 0
+
+# Set ocp_build to "ga", `dev`, or `ci` to pick a specific nightly build
+ocp_build: "ga"
+
+# ocp_version is used in conjunction with ocp_build
+# For "ga" builds, examples are "latest-4.17", "latest-4.16", "4.17.17" or "4.16.35"
+# For "dev" builds, examples are "candidate-4.17", "candidate-4.16" or "latest"
+# For "ci" builds, an example is "4.19.0-0.nightly-2025-02-25-035256"
+ocp_version: "latest-4.19"
+
+# Set to true ONLY if you have a public routable vlan in your scalelab or performancelab cloud.
+# Autoconfigures cluster_name, base_dns_name, controlplane_network_interface_idx, controlplane_network,
+# controlplane_network_prefix, and controlplane_network_gateway to the values required for your cloud's public VLAN.
+# SNO configures only the first cluster on the api dns resolvable address
+# MNO/SNO still requires the correct value for bastion_controlplane_interface
+public_vlan: false
+
+# SNOs only require a single IP address and can be deployed using the lab DHCP interface instead of a private or
+# public vlan network. Set to true to have your SNO deployed on the public lab DHCP network.
+# Cannot combine public_vlan and sno_use_lab_dhcp
+sno_use_lab_dhcp: false
+
+# Enables FIPs security standard
+enable_fips: false
+
+# Enables Operators CNV and LSO install at deployment timeframe (GA releases only)
+enable_cnv_install: false
+
+ssh_private_key_file: ~/.ssh/id_rsa
+ssh_public_key_file: ~/.ssh/id_rsa.pub
+# Place your pull_secret.txt in the base directory of the cloned jetlag repo, Example:
+# [root@<bastion> jetlag]# ls pull_secret.txt
+pull_secret: "{{ lookup('file', '../pull_secret.txt') }}"
+
+################################################################################
+# Bastion node vars
+################################################################################
+bastion_cluster_config_dir: /root/{{ cluster_type }}
+
+smcipmitool_url:
+
+# Network interfaces - these will be auto-configured based on lab and machine type
+# if not explicitly set. To override auto-configuration, uncomment and set values:
+bastion_lab_interface: eno8303
+bastion_controlplane_interface: ens3f0
+
+# Sets up Gogs a self-hosted git service on the bastion
+setup_bastion_gogs: false
+
+# Set to enable and sync container images into a container image registry on the bastion
+setup_bastion_registry: false
+
+# Use in conjunction with ipv6 based clusters
+use_bastion_registry: false
+
+################################################################################
+# OCP node vars
+################################################################################
+# Network configuration for all mno/sno cluster nodes
+# This will be auto-configured based on lab and machine type if not explicitly set
+# To override auto-configuration, uncomment and set value:
+controlplane_lab_interface: eno8303
+
+################################################################################
+# Extra vars
+################################################################################
+# Append override vars below
+control_plane_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
+worker_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
+sno_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
+cluster_network_host_prefix: 21
+cluster_network_cidr: 10.128.0.0/14
+
