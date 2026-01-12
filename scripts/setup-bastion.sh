@@ -64,6 +64,13 @@ ssh "root@$HOSTNAME" << EOF
         echo "⏭️ Jetlag folder already exists."
     fi
 
+    echo "📂 Cloning DevWorkspace Operator Load Tests repository..."
+    if [ ! -d "/home/devworkspace-operator-load-tests" ]; then
+        git clone https://github.com/rohankanojia-testing/devworkspace-operator-load-tests /home/devworkspace-operator-load-tests
+    else
+        echo "⏭️ DevWorkspace Operator Load Tests folder already exists."
+    fi
+
     echo "📄 Organizing files..."
     
     # Move pull-secret to the jetlag root
