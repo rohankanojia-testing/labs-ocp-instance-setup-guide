@@ -17,6 +17,9 @@ HOSTNAME=$1
 PASS=$LAB_SSH_PASSWORD
 LOCAL_SECRET="$HOME/Downloads/pull-secret.txt"
 LOCAL_SMC="$HOME/Downloads/smcipmitool.tar.gz"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_ALL_YML="$SCRIPT_DIR/../all.yml"
+LOCAL_TEMP_SCRIPTS="$HOME/temp-scripts"
 
 echo "📡 Phase 1: Local to $HOSTNAME Transfer..."
 
@@ -38,6 +41,39 @@ if [ -f "$LOCAL_SMC" ]; then
     scp "$LOCAL_SMC" "root@$HOSTNAME:/root/smcipmitool.tar.gz"
 else
     echo "⚠️ Warning: $LOCAL_SMC not found!"
+fi
+
+# ⚙️ 4. Upload all.yml configuration
+if [ -f "$LOCAL_ALL_YML" ]; then
+    echo "⚙️ Uploading all.yml..."
+    scp "$LOCAL_ALL_YML" "root@$HOSTNAME:/root/all.yml"
+else
+    echo "⚠️ Warning: $LOCAL_ALL_YML not found!"
+fi
+
+# 📜 5. Upload scripts to remote server
+echo "📜 Creating /home/temp-scripts on remote server..."
+ssh "root@$HOSTNAME" "mkdir -p /home/temp-scripts"
+
+echo "📜 Uploading project scripts to /home/temp-scripts..."
+for script in "$SCRIPT_DIR"/*.sh; do
+    script_name=$(basename "$script")
+    if [ "$script_name" != "setup-bastion.sh" ] && [ "$script_name" != "jetlag-install.sh" ]; then
+        scp "$script" "root@$HOSTNAME:/home/temp-scripts/"
+    fi
+done
+
+# Upload jetlag-install.sh separately (will be moved later)
+if [ -f "$SCRIPT_DIR/jetlag-install.sh" ]; then
+    scp "$SCRIPT_DIR/jetlag-install.sh" "root@$HOSTNAME:/root/jetlag-install.sh"
+fi
+
+# 📂 6. Upload home temp-scripts
+if [ -d "$LOCAL_TEMP_SCRIPTS" ]; then
+    echo "📂 Uploading temp-scripts from home directory to /home/temp-scripts..."
+    scp "$LOCAL_TEMP_SCRIPTS"/* "root@$HOSTNAME:/home/temp-scripts/"
+else
+    echo "⚠️ Warning: $LOCAL_TEMP_SCRIPTS not found!"
 fi
 
 echo "🖥️ Phase 2: Remote Configuration on $HOSTNAME..."
@@ -72,7 +108,7 @@ ssh "root@$HOSTNAME" << EOF
     fi
 
     echo "📄 Organizing files..."
-    
+
     # Move pull-secret to the jetlag root
     if [ -f "/root/pull-secret.txt" ]; then
         mv /root/pull-secret.txt /root/jetlag/pull-secret.txt
@@ -83,6 +119,28 @@ ssh "root@$HOSTNAME" << EOF
     if [ -f "/root/smcipmitool.tar.gz" ]; then
         mv /root/smcipmitool.tar.gz /root/jetlag/ansible/smcipmitool.tar.gz
         echo "✅ SMCIPMITool -> /root/jetlag/ansible/"
+    fi
+
+    # Move all.yml to the jetlag ansible vars directory
+    if [ -f "/root/all.yml" ]; then
+        mkdir -p /root/jetlag/ansible/vars
+        mv /root/all.yml /root/jetlag/ansible/vars/all.yml
+        echo "✅ all.yml -> /root/jetlag/ansible/vars/"
+    fi
+
+    # Move jetlag-install.sh to jetlag root directory
+    if [ -f "/root/jetlag-install.sh" ]; then
+        mv /root/jetlag-install.sh /root/jetlag/jetlag-install.sh
+        echo "✅ jetlag-install.sh -> /root/jetlag/"
+    fi
+
+    # Add /home/temp-scripts to PATH
+    echo "🔧 Adding /home/temp-scripts to PATH..."
+    if ! grep -q '/home/temp-scripts' ~/.bashrc; then
+        echo 'export PATH="/home/temp-scripts:\$PATH"' >> ~/.bashrc
+        echo "✅ /home/temp-scripts added to PATH in ~/.bashrc"
+    else
+        echo "⏭️ /home/temp-scripts already in PATH"
     fi
 
     echo "✨ --- SETUP COMPLETE --- ✨"
