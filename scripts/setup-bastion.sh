@@ -83,6 +83,15 @@ ssh "root@$HOSTNAME" << EOF
     echo "📦 Installing dependencies (tmux, git, python3-pip, sshpass)..."
     dnf install tmux git python3-pip sshpass -y
 
+    echo "📊 Installing k6 load testing tool..."
+    if ! command -v k6 &> /dev/null; then
+        dnf install https://dl.k6.io/rpm/repo.rpm -y
+        dnf install k6 -y
+        echo "✅ k6 installed successfully"
+    else
+        echo "⏭️ k6 already installed"
+    fi
+
     echo "🔐 Generating internal SSH keys..."
     if [ ! -f ~/.ssh/id_rsa ]; then
         ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
