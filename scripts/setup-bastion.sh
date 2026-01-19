@@ -92,6 +92,23 @@ ssh "root@$HOSTNAME" << EOF
         echo "⏭️ k6 already installed"
     fi
 
+    echo "📦 Installing Node.js 18..."
+    if ! command -v node &> /dev/null; then
+        dnf module enable nodejs:18 -y
+        dnf module install nodejs:18 -y
+        echo "✅ Node.js installed successfully (version: \$(node --version))"
+    else
+        echo "⏭️ Node.js already installed (version: \$(node --version))"
+    fi
+
+    echo "🚀 Installing chectl (Eclipse Che CLI)..."
+    if ! command -v chectl &> /dev/null; then
+        bash <(curl -sL https://che-incubator.github.io/chectl/install.sh)
+        echo "✅ chectl installed successfully"
+    else
+        echo "⏭️ chectl already installed (version: \$(chectl version))"
+    fi
+
     echo "🔐 Generating internal SSH keys..."
     if [ ! -f ~/.ssh/id_rsa ]; then
         ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
