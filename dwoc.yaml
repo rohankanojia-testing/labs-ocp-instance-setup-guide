@@ -1,0 +1,12 @@
+apiVersion: controller.devfile.io/v1alpha1
+config:
+  workspace:
+    # To avoid intermittent image pull failures
+    imagePullPolicy: IfNotPresent
+    # To avoid ready timeout errors
+    progressTimeout: 3600s
+kind: DevWorkspaceOperatorConfig
+metadata:
+  name: devworkspace-operator-config
+  namespace: openshift-operators
+
