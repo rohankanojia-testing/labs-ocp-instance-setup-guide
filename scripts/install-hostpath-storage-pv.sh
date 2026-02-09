@@ -69,3 +69,4 @@ volumeBindingMode: Immediate
 reclaimPolicy: Delete
 EOF
 
+oc patch storageclass hostpath-sc -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
