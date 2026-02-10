@@ -1,10 +1,18 @@
 #!/bin/bash
 
-echo "🔍 Checking Machine Config Pools..."
-oc get machineconfigpools
+# =========================
+# Configuration
+# =========================
+MAX_PODS=1500 
 
-echo "📝 Creating kubeletconfig-master.yaml..."
-cat <<EOF > kubeletconfig-master.yaml
+
+echo "Setting maxPods to: $MAX_PODS"
+echo
+
+# =========================
+# Master Nodes
+# =========================
+cat << EOF > kubeletconfig-master.yaml
 apiVersion: machineconfiguration.openshift.io/v1
 kind: KubeletConfig
 metadata:
@@ -14,11 +22,15 @@ spec:
     matchLabels:
       pools.operator.machineconfiguration.openshift.io/master: ""
   kubeletConfig:
-    maxPods: 2500
+    maxPods: ${MAX_PODS}
 EOF
 
-echo "📝 Creating kubeletconfig-worker.yaml..."
-cat <<EOF > kubeletconfig-worker.yaml
+echo "Created kubeletconfig-master.yaml with maxPods: ${MAX_PODS}"
+
+# =========================
+# Worker Nodes
+# =========================
+cat << EOF > kubeletconfig-worker.yaml
 apiVersion: machineconfiguration.openshift.io/v1
 kind: KubeletConfig
 metadata:
@@ -28,11 +40,18 @@ spec:
     matchLabels:
       pools.operator.machineconfiguration.openshift.io/worker: ""
   kubeletConfig:
-    maxPods: 2500
+    maxPods: ${MAX_PODS}
 EOF
 
-echo "🚀 Applying configurations..."
+echo "Created kubeletconfig-worker.yaml with maxPods: ${MAX_PODS}"
+
+# =========================
+# Apply Configurations
+# =========================
+echo "Applying KubeletConfig for master nodes..."
 oc apply -f kubeletconfig-master.yaml
+
+echo "Applying KubeletConfig for worker nodes..."
 oc apply -f kubeletconfig-worker.yaml
 
 echo "-------------------------------------------------------"
