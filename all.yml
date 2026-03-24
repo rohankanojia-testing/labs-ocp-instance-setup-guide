@@ -81,7 +81,6 @@ controlplane_lab_interface: eno8303
 ################################################################################
 # Append override vars below
 control_plane_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
-worker_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
 sno_install_disk: /dev/disk/by-path/pci-0000:05:00.0-ata-1
 cluster_network_host_prefix:
 - 21
