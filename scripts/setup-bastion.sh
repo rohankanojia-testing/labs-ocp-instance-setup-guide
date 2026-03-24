@@ -133,6 +133,13 @@ ssh "root@$HOSTNAME" << EOF
         echo "⏭️ DevWorkspace Operator Load Tests folder already exists."
     fi
 
+    echo "📂 Cloning DevWorkspace Operator repository..."
+    if [ ! -d "/home/devworkspace-operator" ]; then
+        git clone https://github.com/devfile/devworkspace-operator /home/devworkspace-operator
+    else
+        echo "⏭️ DevWorkspace Operator folder already exists."
+    fi
+
     echo "📄 Organizing files..."
 
     # Move pull-secret to the jetlag root
