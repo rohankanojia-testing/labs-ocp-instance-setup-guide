@@ -71,6 +71,12 @@ sed -i "s/^ocp_version:.*/ocp_version: \"${OCP_VERSION}\"/" "$OUTPUT"
 # worker_node_count (force 3 like your example)
 sed -i "s/^worker_node_count:.*/worker_node_count: 3/" "$OUTPUT"
 
+# lab (required by jetlag validation)
+sed -i "s/^lab:$/lab: performancelab/" "$OUTPUT"
+
+# cluster_type (required by jetlag validation - sno for Single Node OpenShift)
+sed -i "s/^cluster_type:$/cluster_type: sno/" "$OUTPUT"
+
 # -----------------------------
 # Uncomment + set interfaces
 # -----------------------------
@@ -94,4 +100,10 @@ cluster_network_cidr:
 - 10.128.0.0/14
 EOF
 
-echo "[SUCCESS] all.yml generated exactly like template style"
+echo "[SUCCESS] all.yml generated with the following configuration:"
+echo "  - lab: performancelab"
+echo "  - cluster_type: sno"
+echo "  - lab_cloud: ${LAB_CLOUD}"
+echo "  - ocp_version: ${OCP_VERSION}"
+echo "  - Hardware detected: ${PRODUCT}"
+echo "  - Install disk: ${INSTALL_DISK}"

@@ -1,5 +1,55 @@
 # Creating OCP Cluster on lab instance
 
+## Quick Start: Automated Setup with Claude Code Skill
+
+**NEW!** The easiest way to set up a PerformanceLabs cluster is using the Claude Code skill that automates the entire process.
+
+### Installing the Skill
+
+1. **Copy the skill to your Claude Code skills directory**:
+   ```bash
+   mkdir -p ~/.claude/skills
+   cp .claude/skills/setup-performancelabs-cluster.md ~/.claude/skills/
+   ```
+
+2. **Verify installation**:
+   ```bash
+   ls -lh ~/.claude/skills/setup-performancelabs-cluster.md
+   ```
+
+### Using the Skill
+
+Once installed, you can trigger the skill in a Claude Code conversation by saying:
+- "Set up my performancelabs cluster"
+- "Deploy OpenShift on my performancelabs instance"
+- "Install my performancelabs environment"
+
+The skill will guide you through:
+1. ✅ Gathering prerequisites (bastion hostname, lab cloud, passwords)
+2. ✅ Setting up the bastion with all dependencies
+3. ✅ Generating hardware-specific configuration
+4. ✅ Deploying Single Node OpenShift (SNO)
+5. ✅ (Optional) Scaling to Multi-Node OpenShift (MNO)
+6. ✅ Increasing pod capacity to 1500 per node
+7. ✅ Post-installation configuration (storage, registry, DevWorkspace)
+
+**Time to complete**: ~90 minutes for SNO, ~2 hours for MNO with 3 workers
+
+### What You Need
+
+Before starting, make sure you have:
+- `~/Downloads/pull-secret.txt` - Your OpenShift pull secret
+- `~/Downloads/smcipmitool.tar.gz` - SMC IPMI tool for hardware management
+- `LAB_SSH_PASSWORD` environment variable set
+- Lab allocation details (bastion hostname, cloud name, lab ID)
+
+---
+
+## Manual Setup Instructions
+
+If you prefer to run the scripts manually instead of using the skill, follow the instructions below.
+
+## Lab Access
 ## Lab Access
 You should've received an email about environment allocation like this:
 
