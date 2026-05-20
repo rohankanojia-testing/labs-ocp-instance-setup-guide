@@ -1,85 +1,183 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+REGISTRY_CONFIG="configs.imageregistry.operator.openshift.io/cluster"
+REGISTRY_NS="openshift-image-registry"
+REGISTRY_DEPLOYMENT="image-registry"
 
 echo "🔧 Enabling OpenShift internal image registry..."
 
-# Ensure config exists
-if ! oc get configs.imageregistry.operator.openshift.io cluster >/dev/null 2>&1; then
+# Verify oc login
+oc whoami >/dev/null 2>&1 || {
+  echo "❌ Not logged into OpenShift"
+  exit 1
+}
+
+# Verify registry config exists
+oc get "$REGISTRY_CONFIG" >/dev/null 2>&1 || {
   echo "❌ Image registry config not found"
   exit 1
-fi
+}
 
-# Enable registry (if not already)
-CURRENT_STATE=$(oc get configs.imageregistry.operator.openshift.io cluster -o jsonpath='{.spec.managementState}')
+# -------------------------------------------------------------------
+# Enable managementState
+# -------------------------------------------------------------------
+
+CURRENT_STATE=$(oc get "$REGISTRY_CONFIG" -o jsonpath='{.spec.managementState}')
 
 if [[ "$CURRENT_STATE" != "Managed" ]]; then
-  echo "➡️ Setting managementState to Managed"
-  oc patch configs.imageregistry.operator.openshift.io cluster \
+  echo "➡️ Setting managementState=Managed"
+
+  oc patch "$REGISTRY_CONFIG" \
     --type=merge \
     -p '{"spec":{"managementState":"Managed"}}'
 else
   echo "✅ Registry already Managed"
 fi
 
-# Ensure storage (use emptyDir if not configured)
-STORAGE_TYPE=$(oc get configs.imageregistry.operator.openshift.io cluster -o jsonpath='{.spec.storage}')
+echo "⏳ Waiting for operator reconciliation..."
 
-if [[ -z "$STORAGE_TYPE" || "$STORAGE_TYPE" == "null" ]]; then
+oc wait \
+  --for=jsonpath='{.spec.managementState}'=Managed \
+  "$REGISTRY_CONFIG" \
+  --timeout=60s >/dev/null
+
+# -------------------------------------------------------------------
+# Configure storage if missing
+# -------------------------------------------------------------------
+
+STORAGE_JSON=$(oc get "$REGISTRY_CONFIG" -o jsonpath='{.spec.storage}' 2>/dev/null || true)
+
+if [[ -z "$STORAGE_JSON" || "$STORAGE_JSON" == "{}" ]]; then
   echo "➡️ Configuring emptyDir storage (ephemeral)"
-  oc patch configs.imageregistry.operator.openshift.io cluster \
-    --type=merge \
-    -p '{"spec":{"storage":{"emptyDir":{}}}}'
+
+  oc patch "$REGISTRY_CONFIG" \
+    --type=json \
+    -p='[
+      {
+        "op":"replace",
+        "path":"/spec/storage",
+        "value":{"emptyDir":{}}
+      }
+    ]' || \
+  oc patch "$REGISTRY_CONFIG" \
+    --type=json \
+    -p='[
+      {
+        "op":"add",
+        "path":"/spec/storage",
+        "value":{"emptyDir":{}}
+      }
+    ]'
 else
   echo "✅ Storage already configured"
 fi
 
-# Ensure route is enabled
-DEFAULT_ROUTE=$(oc get configs.imageregistry.operator.openshift.io cluster -o jsonpath='{.spec.defaultRoute}')
+# -------------------------------------------------------------------
+# Enable external route
+# -------------------------------------------------------------------
+
+DEFAULT_ROUTE=$(oc get "$REGISTRY_CONFIG" \
+  -o jsonpath='{.spec.defaultRoute}' 2>/dev/null || true)
 
 if [[ "$DEFAULT_ROUTE" != "true" ]]; then
   echo "➡️ Enabling default route"
-  oc patch configs.imageregistry.operator.openshift.io cluster \
+
+  oc patch "$REGISTRY_CONFIG" \
     --type=merge \
     -p '{"spec":{"defaultRoute":true}}'
 else
   echo "✅ Default route already enabled"
 fi
 
-echo "⏳ Waiting for registry rollout..."
+# -------------------------------------------------------------------
+# Wait for deployment
+# -------------------------------------------------------------------
 
-# Wait for deployment to be ready
-oc rollout status deployment/image-registry -n openshift-image-registry --timeout=120s || {
-  echo "⚠️ Registry rollout check failed, printing debug info..."
-  oc get pods -n openshift-image-registry
+echo "⏳ Waiting for registry deployment..."
+
+for i in {1..30}; do
+  if oc get deployment "$REGISTRY_DEPLOYMENT" -n "$REGISTRY_NS" >/dev/null 2>&1; then
+    break
+  fi
+
+  sleep 5
+
+  if [[ "$i" -eq 30 ]]; then
+    echo "❌ Registry deployment never appeared"
+    oc get all -n "$REGISTRY_NS" || true
+    exit 1
+  fi
+done
+
+# -------------------------------------------------------------------
+# Wait for rollout
+# -------------------------------------------------------------------
+
+echo "⏳ Waiting for rollout completion..."
+
+if ! oc rollout status deployment/"$REGISTRY_DEPLOYMENT" \
+  -n "$REGISTRY_NS" \
+  --timeout=180s; then
+
+  echo "❌ Registry rollout failed"
+  echo ""
+
+  oc get pods -n "$REGISTRY_NS" -o wide || true
+
+  echo ""
+  echo "📜 Recent events:"
+  oc get events -n "$REGISTRY_NS" \
+    --sort-by=.lastTimestamp | tail -20 || true
+
   exit 1
-}
+fi
 
-echo "🔍 Verifying service..."
-oc get svc -n openshift-image-registry | grep image-registry || {
+# -------------------------------------------------------------------
+# Validate service
+# -------------------------------------------------------------------
+
+echo "🔍 Verifying registry service..."
+
+oc get svc image-registry -n "$REGISTRY_NS" >/dev/null 2>&1 || {
   echo "❌ Registry service not found"
   exit 1
 }
 
-echo "🔍 Fetching route..."
-ROUTE=$(oc get route default-route -n openshift-image-registry -o jsonpath='{.spec.host}' 2>/dev/null || true)
+# -------------------------------------------------------------------
+# Fetch route
+# -------------------------------------------------------------------
+
+ROUTE=$(oc get route default-route \
+  -n "$REGISTRY_NS" \
+  -o jsonpath='{.spec.host}' 2>/dev/null || true)
+
+# -------------------------------------------------------------------
+# Final output
+# -------------------------------------------------------------------
 
 echo ""
 echo "🎉 OpenShift internal registry is ready!"
 echo ""
 
-if [[ -n "$ROUTE" ]]; then
-  echo "🌐 External route:"
-  echo "   $ROUTE"
-fi
-
 echo "🔗 Internal endpoint:"
 echo "   image-registry.openshift-image-registry.svc:5000"
 
-echo ""
-echo "🔐 Login command:"
-echo "   podman login $ROUTE -u \$(oc whoami) -p \$(oc whoami -t)"
+if [[ -n "$ROUTE" ]]; then
+  echo ""
+  echo "🌐 External route:"
+  echo "   $ROUTE"
+
+  echo ""
+  echo "🔐 Login command:"
+  echo "   podman login $ROUTE -u \$(oc whoami) -p \$(oc whoami -t)"
+
+  echo ""
+  echo "📦 Example push:"
+  echo "   podman tag alpine $ROUTE/<namespace>/alpine"
+  echo "   podman push $ROUTE/<namespace>/alpine"
+fi
 
 echo ""
-echo "📦 Example push:"
-echo "   podman tag alpine $ROUTE/<namespace>/alpine"
-echo "   podman push $ROUTE/<namespace>/alpine"
+echo "📊 Registry status:"
+oc get clusteroperator image-registry

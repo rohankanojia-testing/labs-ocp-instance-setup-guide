@@ -127,9 +127,11 @@ Ask user: "Which storage provider do you want? (local-storage-operator / local-p
 
 3. **Enable OpenShift internal registry**:
    ```bash
-   ssh root@<bastion-hostname> "/home/temp-scripts/openshift-internal-registry-enable.sh"
+   ssh root@<bastion-hostname> "chmod +x /home/temp-scripts/openshift-internal-registry-enable.sh && /home/temp-scripts/openshift-internal-registry-enable.sh"
    ```
-   - Capture the registry route and display to user
+   - Monitor output for success messages
+   - Verify registry is enabled and route is created
+   - Capture and display the registry route to user
 
 4. **Increase pod limits**:
    ```bash
