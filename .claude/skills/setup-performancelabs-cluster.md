@@ -142,11 +142,11 @@ Ask user: "Which storage provider do you want? (local-storage-operator / local-p
    - Ask: "Are you setting this up for DevWorkspaces/DevSpaces? (yes/no)"
    - If yes, apply the DevWorkspaceOperatorConfig
 
-### Step 6: Scale to Multi-Node (Optional)
+### Step 6: Scale to Multi-Node (ALWAYS REQUIRED)
 
-Ask user: "Do you want to scale to multi-node? If yes, how many worker nodes?"
+**IMPORTANT:** Scale-out to 3 workers is ALWAYS performed automatically. Do not ask for user confirmation - proceed directly to scale-out.
 
-If user wants to scale, use the automated scale-out.sh script:
+Use the automated scale-out.sh script:
 
 1. **Run scale-out.sh script**:
    ```bash

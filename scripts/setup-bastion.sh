@@ -176,6 +176,66 @@ ssh "root@$HOSTNAME" << EOF
         echo "⏭️ /home/temp-scripts already in PATH"
     fi
 
+    # Add useful Kubernetes/OpenShift aliases
+    echo "🔧 Adding Kubernetes/OpenShift aliases to ~/.bashrc..."
+    if ! grep -q '# Kubernetes/OpenShift aliases' ~/.bashrc; then
+        cat >> ~/.bashrc << 'ALIASES'
+
+# Kubernetes/OpenShift aliases
+alias p="oc get pods"
+alias d="oc delete"
+alias c="oc create -f"
+alias l="kubectl logs"
+alias gg="git grep -in"
+alias dw="oc get dw --all-namespaces"
+alias dwd="oc delete dw --all"
+alias dwolog="oc logs -lapp.kubernetes.io/name=devworkspace-controller -nopenshift-operators -f"
+alias chelog="oc logs -lapp.kubernetes.io/component=che-operator -nopenshift-operators -f"
+alias ocop="oc get pods -nopenshift-operators -w"
+alias pods="oc get pods"
+alias pod="oc get pod"
+alias svc="oc get svc"
+alias deploy="oc get deploy"
+alias cm="oc get configmap"
+alias secret="oc get secret"
+alias ns="oc get ns"
+alias pv="oc get pv"
+alias pvc="oc get pvc"
+alias sc="oc get sc"
+alias events="oc get events"
+alias dp="oc describe pod"
+alias ds="oc describe svc"
+alias dcm="oc describe configmap"
+alias dsecret="oc describe secret"
+alias py="oc get pod -o yaml | less"
+alias deployy="oc get deploy -o yaml"
+alias cmy="oc get configmap -o yaml"
+alias secrety="oc get secret -o yaml"
+alias nsy="oc get namespace -o yaml"
+alias nodey="oc get node -o yaml"
+alias dn="oc describe node"
+alias k="kubectl"
+alias kgp="kubectl get pods"
+alias kgs="kubectl get svc"
+alias kgd="kubectl get deploy"
+alias kgn="kubectl get nodes"
+alias kdp="kubectl describe pod"
+alias kds="kubectl describe svc"
+alias kdn="kubectl describe node"
+alias kl="kubectl logs"
+alias klf="kubectl logs -f"
+alias ke="kubectl exec -it"
+alias ka="kubectl apply -f"
+alias kd="kubectl delete"
+alias kg="kubectl get"
+alias kgy="kubectl get -o yaml"
+alias watch="watch "
+ALIASES
+        echo "✅ Kubernetes/OpenShift aliases added to ~/.bashrc"
+    else
+        echo "⏭️ Aliases already configured in ~/.bashrc"
+    fi
+
     echo "✨ --- SETUP COMPLETE --- ✨"
 EOF
 
