@@ -110,8 +110,16 @@ wait_for_csv_succeeded() {
 
     while [ "$elapsed" -lt "$max_duration" ]; do
         local csv_phase
+        # jq: parentheses required — bare "A or B | C" is parsed as "(A or B) | C"
         csv_phase=$(oc get csv -n "$namespace" -o json 2>/dev/null | \
-            jq -r ".items[] | select(.spec.displayName == \"$operator_name\" or .metadata.name | startswith(\"$operator_name\")) | .status.phase" 2>/dev/null || echo "")
+            jq -r --arg name "$operator_name" '
+                .items[]
+                | select(
+                    .spec.displayName == $name
+                    or (.metadata.name | test("devworkspace-operator"; "i"))
+                  )
+                | .status.phase
+              ' 2>/dev/null | head -n1 || echo "")
 
         if [[ "$csv_phase" == "Succeeded" ]]; then
             echo "CSV for '$operator_name' has reached Succeeded phase."
