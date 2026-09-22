@@ -289,6 +289,39 @@ EOF
     print_success "Scale-out variables updated"
 }
 
+# Ensure the scale-out playbook's hard-coded HTTP store path resolves
+ensure_http_store_path() {
+    print_step 6.5 "Ensuring HTTP Store Path"
+
+    # The ocp-scale-out role copies the discovery ISO to /opt/http_store/data,
+    # but Jetlag serves HTTP from a versioned location (default
+    # /opt/jetlag/http_store). When those differ the copy fails with
+    # "Destination directory /opt/http_store/data does not exist", so bridge
+    # them with a symlink.
+    local expected="/opt/http_store"
+    local real=""
+
+    # Honour an explicit http_store_path from all.yml if set, else default.
+    real=$(grep -E '^[[:space:]]*http_store_path[[:space:]]*:' "$VARS_FILE" 2>/dev/null \
+        | head -1 | cut -d: -f2- | xargs || true)
+    if [[ -z "$real" ]]; then
+        real="/opt/jetlag/http_store"
+    fi
+
+    if [[ -d "${expected}/data" ]]; then
+        print_info "HTTP store path already present: ${expected}/data"
+        return 0
+    fi
+
+    if [[ -d "${real}/data" ]]; then
+        ln -sfn "$real" "$expected"
+        print_success "Linked ${expected} -> ${real}"
+    else
+        print_warning "Could not locate HTTP store data dir (checked ${expected}/data and ${real}/data)"
+        print_warning "Scale-out may fail copying the discovery ISO; verify the Jetlag HTTP store location."
+    fi
+}
+
 # Execute scale-out playbook
 execute_scale_out() {
     print_step 7 "Executing OCP Scale-Out Playbook"
@@ -364,6 +397,7 @@ main() {
     generate_inventory
     show_inventory_diff
     update_scale_vars
+    ensure_http_store_path
     execute_scale_out
 }
 
