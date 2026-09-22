@@ -1,13 +1,12 @@
+---
+name: setup-performancelabs-cluster
+description: Automatically setup and monitor a complete PerformanceLabs OpenShift cluster deployment
+trigger: Set up a new performancelabs cluster, deploy OpenShift on a performancelabs instance, install performancelabs environment
+---
+
 # setup-performancelabs-cluster
 
 Automatically setup and monitor a complete PerformanceLabs OpenShift cluster deployment.
-
-## Trigger
-
-Use this skill when the user wants to:
-- Set up a new performancelabs cluster
-- Deploy OpenShift on a performancelabs instance
-- Install and configure a complete performancelabs environment
 
 ## Instructions
 
@@ -110,39 +109,7 @@ Check if required local files exist:
    - Check that all cluster operators show "AVAILABLE=True" and "DEGRADED=False"
    - Verify KUBECONFIG is in bashrc: `ssh root@<bastion-hostname> "grep -i kubeconfig ~/.bashrc"`
 
-### Step 5: Post-Installation Configuration
-
-Ask user: "Which storage provider do you want? (local-storage-operator / local-path-provisioner)"
-
-1. **Install chosen storage**:
-   ```bash
-   ssh root@<bastion-hostname> "/home/temp-scripts/install-<chosen-storage>.sh"
-   ```
-   - Monitor output for success
-   - Verify StorageClass: `ssh root@<bastion-hostname> "oc get sc"`
-
-2. **Test storage (optional)**:
-   - Ask user: "Do you want to test storage? (yes/no)"
-   - If yes, run test script and show results
-
-3. **Enable OpenShift internal registry**:
-   ```bash
-   ssh root@<bastion-hostname> "chmod +x /home/temp-scripts/openshift-internal-registry-enable.sh && /home/temp-scripts/openshift-internal-registry-enable.sh"
-   ```
-   - Monitor output for success messages
-   - Verify registry is enabled and route is created
-   - Capture and display the registry route to user
-
-4. **Increase pod limits**:
-   ```bash
-   ssh root@<bastion-hostname> "/home/temp-scripts/increate_max_allocatable_pods.sh"
-   ```
-
-5. **Configure DevWorkspace** (ask user first):
-   - Ask: "Are you setting this up for DevWorkspaces/DevSpaces? (yes/no)"
-   - If yes, apply the DevWorkspaceOperatorConfig
-
-### Step 6: Scale to Multi-Node (ALWAYS REQUIRED)
+### Step 5: Scale to Multi-Node (ALWAYS REQUIRED)
 
 **IMPORTANT:** Scale-out to 3 workers is ALWAYS performed automatically. Do not ask for user confirmation - proceed directly to scale-out.
 
@@ -203,7 +170,40 @@ Use the automated scale-out.sh script:
    ```
    - All operators should be AVAILABLE=True, DEGRADED=False
 
-6. **Increase pod capacity on ALL nodes** (CRITICAL for multi-node clusters):
+### Step 6: Post-Installation Configuration (after scale-out)
+
+**CRITICAL**: All post-install configuration runs AFTER scale-out is complete and all nodes are Ready. This ensures storage, registry, and other components are configured on the full cluster.
+
+Ask user: "Which storage provider do you want? (local-storage-operator / local-path-provisioner)"
+
+1. **Install chosen storage**:
+   ```bash
+   ssh root@<bastion-hostname> "/home/temp-scripts/install-<chosen-storage>.sh"
+   ```
+   - Monitor output for success
+   - Verify StorageClass: `ssh root@<bastion-hostname> "oc get sc"`
+
+2. **Test storage (optional)**:
+   - Ask user: "Do you want to test storage? (yes/no)"
+   - If yes, run test script and show results
+
+3. **Enable OpenShift internal registry**:
+   ```bash
+   ssh root@<bastion-hostname> "chmod +x /home/temp-scripts/openshift-internal-registry-enable.sh && /home/temp-scripts/openshift-internal-registry-enable.sh"
+   ```
+   - Monitor output for success messages
+   - Verify registry is enabled and route is created
+   - Capture and display the registry route to user
+
+4. **Configure DevWorkspace** (ask user first):
+   - Ask: "Are you setting this up for DevWorkspaces/DevSpaces? (yes/no)"
+   - If yes, apply the DevWorkspaceOperatorConfig
+
+### Step 7: Increase Pod Capacity on ALL Nodes
+
+**CRITICAL**: This step MUST run AFTER scale-out completes and all workers are Ready. Running it earlier causes the master node reboot to break scale-out by making the API server unreachable.
+
+1. **Increase pod limits**:
    ```bash
    ssh root@<bastion-hostname> "chmod +x /home/temp-scripts/increate_max_allocatable_pods.sh && /home/temp-scripts/increate_max_allocatable_pods.sh"
    ```
@@ -213,7 +213,7 @@ Use the automated scale-out.sh script:
    - Applies KubeletConfig for both master and worker machine config pools
    - Triggers a rolling reboot of ALL nodes to apply changes
 
-   **Monitor the rolling reboot**:
+2. **Monitor the rolling reboot**:
    Create and run a monitoring script to watch progress:
    ```bash
    ssh root@<bastion-hostname> "cat > /root/monitor-mcp.sh << 'EOF'
@@ -248,13 +248,13 @@ chmod +x /root/monitor-mcp.sh && nohup /root/monitor-mcp.sh > /root/mcp-monitor.
 
    **Expected duration**: 15-30 minutes for all nodes to reboot
 
-   **Verify pod capacity after completion**:
+3. **Verify pod capacity after completion**:
    ```bash
    ssh root@<bastion-hostname> "source ~/.bashrc && oc get nodes -o custom-columns='NAME:.metadata.name,MAX_PODS:.status.allocatable.pods,STATUS:.status.conditions[?(@.type==\"Ready\")].status'"
    ```
    - All nodes should show MAX_PODS=1500 and STATUS=True
 
-### Step 7: Final Verification and Summary
+### Step 8: Final Verification and Summary
 
 1. **Run comprehensive verification**:
    ```bash
