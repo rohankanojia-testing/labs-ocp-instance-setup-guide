@@ -138,26 +138,54 @@ Check if required local files exist:
 
 ### Step 5: Scale to Multi-Node (ALWAYS REQUIRED)
 
-**IMPORTANT:** Scale-out to 3 workers is ALWAYS performed automatically. Do not ask for user confirmation - proceed directly to scale-out.
+**IMPORTANT:** Scale-out to ALL available workers is ALWAYS performed automatically. Do not ask for user confirmation - proceed directly to scale-out. Never hard-code the worker count: the number of allocated machines differs per cloud.
 
 Use the automated scale-out.sh script:
 
-1. **Run scale-out.sh script**:
+1. **Determine the worker count dynamically**:
+
+   Available workers = machines allocated to the cloud − 1 bastion − 1 SNO control-plane node.
+
+   **Primary source: the QUADS inventory** (authoritative, uses the token from Step 1):
    ```bash
-   ssh root@<bastion-hostname> "cd /home/temp-scripts && echo 'y' | nohup ./scale-out.sh <lab-cloud> <target-worker-count> <current-worker-count> > /root/scale-out.log 2>&1 &"
+   T="${PERFLAB_QUADS_API_TOKEN:-$(zsh -ic 'printf %s "$PERFLAB_QUADS_API_TOKEN"' 2>/dev/null)}"
+   curl -s -H "Authorization: Bearer $T" \
+     https://quads2.rdu3.labs.perfscale.redhat.com/instack/<lab-cloud>_ocpinventory.json \
+     | python3 -c "import json,sys; n=json.load(sys.stdin)['nodes']; print('allocated:', len(n), '| workers:', len(n)-2); print([x['name'].split('.')[0] for x in n])"
+   ```
+
+   **Cross-check: the JetLag inventory on the bastion.** After the SNO install, the remaining machines are listed as commented-out hosts in the `[sno]` section:
+   ```bash
+   ssh root@<bastion-hostname> "sed -n '/^\[sno\]/,/^\[sno:vars\]/p' /root/jetlag/ansible/inventory/<lab-cloud>.local | grep -c '^# .*bmc_address='"
+   ```
+
+   - Both numbers should match. If they don't, show the user both host lists and ask which to use.
+   - Tell the user the count and the worker hostnames before launching (e.g., "6 machines allocated → scaling out to 4 workers: h31, h33, h35, h37"), but don't wait for confirmation.
+   - If the count is 0, skip scale-out and continue as SNO.
+
+2. **Run scale-out.sh script**:
+   ```bash
+   ssh root@<bastion-hostname> "cd /home/temp-scripts && chmod +x scale-out.sh && (echo y | nohup ./scale-out.sh <lab-cloud> <worker-count> <current-worker-count> > /root/scale-out.log 2>&1 &)"
    ```
 
    **Parameters**:
-   - `lab-cloud`: e.g., cloud52
-   - `target-worker-count`: Total number of workers desired (e.g., 3)
-   - `current-worker-count`: Current workers (0 for SNO, or current count for existing MNO)
+   - `lab-cloud`: e.g., cloud42
+   - `worker-count`: total workers wanted, the number found in item 1
+   - `current-worker-count`: current workers (0 for SNO, or the current count for an existing MNO)
 
-   **Example**: Scale from SNO (0 workers) to 3 workers:
+   **Example**: 6 machines allocated → scale from SNO (0 workers) to 4 workers:
    ```bash
-   ssh root@<bastion-hostname> "cd /home/temp-scripts && echo 'y' | nohup ./scale-out.sh cloud52 3 0 > /root/scale-out.log 2>&1 &"
+   ssh root@<bastion-hostname> "cd /home/temp-scripts && chmod +x scale-out.sh && (echo y | nohup ./scale-out.sh cloud42 4 0 > /root/scale-out.log 2>&1 &)"
    ```
 
-2. **What the script does automatically**:
+   **Do NOT add `< /dev/null`** to this command: it replaces the piped `y`, so the script hangs at its "Proceed with scale-out? (y/N)" prompt.
+
+   **Verify the regenerated inventory** lists every worker (about 90 seconds after launch):
+   ```bash
+   ssh root@<bastion-hostname> "sed -n '/^\[worker\]/,/^\[worker:vars\]/p' /root/jetlag/ansible/inventory/<lab-cloud>.local"
+   ```
+
+3. **What the script does automatically**:
    - Updates `worker_node_count` in all.yml
    - Changes `cluster_type` from `sno` to `mno`
    - Regenerates inventory with new worker nodes
@@ -165,7 +193,7 @@ Use the automated scale-out.sh script:
    - Approves CSRs as workers join
    - Waits for all workers to become Ready
 
-3. **Monitor the scale-out progress**:
+4. **Monitor the scale-out progress**:
    ```bash
    ssh root@<bastion-hostname> "tail -100 /root/scale-out.log"
    ```
@@ -179,12 +207,12 @@ Use the automated scale-out.sh script:
    - "Current Worker Node Count: X" - Progress indicator
    - "[SUCCESS] Scale-Out Completed Successfully!" - Done! ✅
 
-4. **Expected duration**:
-   - Typical: 30-45 minutes for 3 worker nodes
+5. **Expected duration**:
+   - Typical: 30-45 minutes (workers install in parallel, so adding 3 or 4 takes about the same time)
    - Can vary based on hardware discovery and CSR approval time
    - Much faster than the estimated 2 hours if everything goes smoothly
 
-5. **Verify scale-out completion**:
+6. **Verify scale-out completion**:
    ```bash
    ssh root@<bastion-hostname> "source ~/.bashrc && oc get nodes"
    ```
