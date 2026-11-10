@@ -20,6 +20,27 @@ Ask the user for:
 3. **Lab cloud name** - "What is your lab cloud name? (e.g., cloud42, cloud50, cloud52)"
 4. **Lab ID** - "What is your lab ID? (usually same number as cloud name)"
 5. **OCP version** (optional) - "Which OCP version? (default: latest-4.20)"
+6. **QUADS API token** (REQUIRED) - check whether it is already set, without printing it:
+   ```bash
+   T="${PERFLAB_QUADS_API_TOKEN:-$(zsh -ic 'printf %s "$PERFLAB_QUADS_API_TOKEN"' 2>/dev/null)}"
+   [ -n "$T" ] && echo "set (${T:0:4}…, len ${#T})" || echo "NOT set"
+   ```
+   The PerformanceLabs QUADS server runs QUADS 3+, and JetLag refuses to deploy without `quads_api_token` in all.yml (it needs the token to download `<cloud>_ocpinventory.json`). If the token isn't set, tell the user how to get one:
+   1. Connect to the Red Hat VPN and open **https://quads2.rdu3.labs.perfscale.redhat.com/auth/profile**
+   2. Click **SSO Login** and sign in with your Red Hat Google account
+   3. Under **API tokens**, create a token (it starts with `qat_`) and copy it right away
+   4. Add it to `~/.zshrc`: `export PERFLAB_QUADS_API_TOKEN='qat_...'`
+
+   Ask the user to store the token in `~/.zshrc` rather than paste it into the chat.
+
+   **Verify the token works for this cloud** (never echo the token itself):
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $T" \
+     https://quads2.rdu3.labs.perfscale.redhat.com/instack/<lab-cloud>_ocpinventory.json
+   ```
+   - `200` → good
+   - `403` → the user isn't the cloud owner or a cc-user on this cloud; the cloud owner has to add them
+   - Do not continue to deployment until this returns `200`
 
 Check if required local files exist:
 - Use Bash tool: `ls -lh ~/Downloads/pull-secret.txt`
@@ -60,7 +81,13 @@ Check if required local files exist:
    ssh root@<bastion-hostname> "sed -i 's/^cluster_type:$/cluster_type: sno/' /root/jetlag/ansible/vars/all.yml"
    ```
 
-3. **Verify the configuration**:
+3. **Set the QUADS API token in all.yml** (sent over stdin, so it never appears in a command line or in output):
+   ```bash
+   printf '%s' "$T" | ssh root@<bastion-hostname> 'read -r tok; f=/root/jetlag/ansible/vars/all.yml; sed -i "s|^quads_api_token:.*|quads_api_token: \"$tok\"|" $f; grep "^quads_api_token:" $f | sed -E "s/(qat_).*\"/\1****\"/"'
+   ```
+   - Expect masked output: `quads_api_token: "qat_****"`
+
+4. **Verify the configuration**:
    ```bash
    ssh root@<bastion-hostname> "grep -E '(lab:|cluster_type:|lab_cloud:|ocp_version:|bastion_lab_interface:|bastion_controlplane_interface:|controlplane_lab_interface:|install_disk:)' /root/jetlag/ansible/vars/all.yml"
    ```
@@ -82,7 +109,7 @@ Check if required local files exist:
 
 3. **Run JetLag installation in background**:
    ```bash
-   ssh root@<bastion-hostname> "cd /root/jetlag && nohup ./jetlag-install.sh > /root/jetlag-install.log 2>&1 &"
+   ssh root@<bastion-hostname> "cd /root/jetlag && chmod +x jetlag-install.sh && nohup ./jetlag-install.sh > /root/jetlag-install.log 2>&1 &"
    ```
    - Inform user: "🚀 OpenShift deployment started. This will take approximately 45-60 minutes..."
    - Monitor progress periodically:
@@ -300,25 +327,32 @@ Common issues and fixes:
 1. **"Invalid lab selected"**:
    - Fix: Set `lab: performancelab` in all.yml
 
-2. **"Invalid cluster_type selected"**:
+2. **"quads_api_token must be set in all.yml for performancelab environments running QUADS 3+"** (install exits within a minute with "Failed to create inventory. Exiting."):
+   - Cause: `quads_api_token` is empty in all.yml
+   - Fix: get a token as described in Step 1 (item 6), set it as in Step 3 (item 3), then rerun jetlag-install.sh
+
+3. **"nohup: failed to run command './jetlag-install.sh': Permission denied"**:
+   - Fix: `chmod +x /root/jetlag/jetlag-install.sh` on the bastion
+
+4. **"Invalid cluster_type selected"**:
    - Fix: Set `cluster_type: sno` (or `mno` for multi-node) in all.yml
 
-3. **"Host key verification failed"**:
+5. **"Host key verification failed"**:
    - Fix: `ssh-keyscan <bastion-hostname> >> ~/.ssh/known_hosts` on the bastion
 
-4. **"cannot stat 'ansible/vars/all.sample.yml'"**:
+6. **"cannot stat 'ansible/vars/all.sample.yml'"**:
    - Fix: Must run create-all-yml.sh ON the bastion after setup-bastion.sh
 
-5. **Ansible errors during deployment**:
+7. **Ansible errors during deployment**:
    - Check: `ssh root@<bastion-hostname> "tail -100 /root/jetlag-install.log"`
    - Look for specific error messages and address them
 
-6. **Scale-out script hangs or doesn't progress**:
+8. **Scale-out script hangs or doesn't progress**:
    - The script has a confirmation prompt that requires 'y' input
    - Fix: Pipe 'y' to the script: `echo 'y' | nohup ./scale-out.sh ...`
    - If already running: Kill process and restart with echo 'y' piped
 
-7. **API server unreachable after pod capacity increase**:
+9. **API server unreachable after pod capacity increase**:
    - This is normal during the rolling reboot (master node reboots first)
    - Wait 5-10 minutes for master node to come back online
    - Monitor with the mcp-monitor script: `tail -f /root/mcp-monitor.log`
